@@ -4,7 +4,6 @@ export interface Command {
     name: string;
     description: string;
     requiresSelection: boolean;
-    opensNewTab: boolean;
     template: string;
 }
 
@@ -23,7 +22,6 @@ export async function loadCommand(name: String): Promise<Command> {
         name: parsed.data.name,
         description: parsed.data.description,
         requiresSelection: parsed.data.requiresSelection ?? false,
-        opensNewTab: parsed.data.opensNewTab ?? false,
         template: parsed.content.trim(),
     }
 }
@@ -37,7 +35,6 @@ export function loadAllCommands(): Command[] {
             name: parsed.data.name,
             description: parsed.data.description,
             requiresSelection: parsed.data.requiresSelection ?? false,
-            opensNewTab: parsed.data.opensNewTab ?? false,
             template: parsed.content.trim(),
         })
     }
