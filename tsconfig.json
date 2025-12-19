@@ -12,7 +12,8 @@
         "skipLibCheck": true,
         "resolveJsonModule": true,
         "types": [
-            "vite/client"
+            "vite/client",
+            "chrome"
         ]
     },
     "include": [
