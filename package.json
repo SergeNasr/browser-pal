@@ -1,0 +1,24 @@
+{
+  "name": "browser-pal",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "vite build",
+    "dev": "vite dev"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.26.1",
+  "devDependencies": {
+    "@crxjs/vite-plugin": "^2.3.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.0"
+  },
+  "dependencies": {
+    "dom-anchor-text-quote": "^4.0.2",
+    "gray-matter": "^4.0.3"
+  }
+}
