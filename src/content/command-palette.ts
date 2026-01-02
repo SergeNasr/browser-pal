@@ -6,12 +6,49 @@ const PALETTE_ID = 'browser-pal-palette'
 let paletteElement: HTMLElement | null = null
 let inputElement: HTMLInputElement | null = null
 let commandsListElement: HTMLElement | null = null
+let responseElement: HTMLElement | null = null
+let responseContentElement: HTMLElement | null = null
 let commands: Command[] = []
 let selectedIndex = 0
 let filteredCommands: Command[] = []
 
+function showResponse(content: string): void {
+    // Always ensure initialization happens
+    if (!paletteElement) {
+        initCommandPalette()
+    }
+
+    // Re-query elements if they're not cached
+    if (!responseElement || !responseContentElement) {
+        responseElement = document.querySelector('#browser-pal-response') as HTMLElement
+        responseContentElement = document.querySelector('#response-content') as HTMLElement
+    }
+
+    if (responseElement && responseContentElement) {
+        responseContentElement.textContent = content
+        responseElement.classList.remove('response-hidden')
+    } else {
+        console.error('Response elements not found after initialization')
+    }
+
+    console.log('Showing response:', content)
+}
+
+function hideResponse(): void {
+    if (responseElement) {
+        responseElement.classList.add('response-hidden')
+    }
+}
+
 export function initCommandPalette(): void {
-    if (paletteElement) return
+    if (paletteElement) {
+        // If palette exists, just ensure response elements are cached
+        if (!responseElement || !responseContentElement) {
+            responseElement = document.querySelector('#browser-pal-response') as HTMLElement
+            responseContentElement = document.querySelector('#response-content') as HTMLElement
+        }
+        return
+    }
 
     const style = document.createElement('style')
     style.textContent = cssContent
@@ -19,8 +56,13 @@ export function initCommandPalette(): void {
 
     const container = document.createElement('div')
     container.innerHTML = htmlContent
-    paletteElement = container.firstElementChild as HTMLElement
-    document.body.appendChild(paletteElement)
+
+    // Append all children from the container (both palette and response elements)
+    while (container.firstChild) {
+        document.body.appendChild(container.firstChild)
+    }
+
+    paletteElement = document.querySelector('#browser-pal-palette') as HTMLElement
 
     inputElement = paletteElement.querySelector('#palette-input') as HTMLInputElement
     commandsListElement = paletteElement.querySelector('#palette-commands') as HTMLElement
@@ -33,6 +75,13 @@ export function initCommandPalette(): void {
 
     const backdrop = paletteElement.querySelector('.palette-backdrop')
     backdrop?.addEventListener('click', hidePalette)
+
+    responseElement = document.querySelector('#browser-pal-response') as HTMLElement
+    responseContentElement = document.querySelector('#response-content') as HTMLElement
+    const responseClose = document.querySelector('#response-close')
+    const responseBackdrop = document.querySelector('.response-backdrop')
+    responseClose?.addEventListener('click', hideResponse)
+    responseBackdrop?.addEventListener('click', hideResponse)
 
     renderCommands()
 }
@@ -119,21 +168,38 @@ function renderCommands(): void {
     }
 }
 
-function executeCommand(cmd: Command): void {
+async function executeCommand(cmd: Command): Promise<void> {
     hidePalette()
 
     const selection = window.getSelection()?.toString().trim() || ''
 
+    console.log('Executing command:', cmd)
     if (cmd.requiresSelection && !selection) {
         alert(`Command /${cmd.name} requires selected text`)
         return
     }
 
-    chrome.runtime.sendMessage({
-        type: 'executeCommand',
-        command: cmd.name,
-        selection,
-    })
+    showResponse('Processing...')
+
+    try {
+        const result = await chrome.runtime.sendMessage({
+            type: 'executeCommand',
+            command: cmd.name,
+            selection,
+        })
+        if (!result) {
+            showResponse('No response received from background script')
+            return
+        }
+
+        if (result.success && result.response) {
+            showResponse(result.response)
+        } else {
+            showResponse(`Error: ${result.error || 'Unknown error'}`)
+        }
+    } catch (error) {
+        showResponse(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
 }
 
 export function showPalette(): void {
@@ -152,6 +218,7 @@ export function showPalette(): void {
 }
 
 export function hidePalette(): void {
+    console.log('Hiding palette...', paletteElement)
     if (paletteElement) {
         paletteElement.classList.add('palette-hidden')
         if (inputElement) {

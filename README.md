@@ -8,19 +8,48 @@ Chrome extension providing a command palette for AI-powered browsing commands.
 - Extensible command system via markdown files
 - Text selection support for commands
 - Fuzzy search with `/` prefix
+- OpenAI integration for AI-powered commands
 
-## Setup
+## Installation
 
+### Building from Source
+
+1. Clone the repository and install dependencies:
 ```bash
 pnpm install
 pnpm build
 ```
 
-Load the extension in Chrome:
-1. Navigate to `chrome://extensions/`
-2. Enable "Developer mode"
-3. Click "Load unpacked"
-4. Select the `dist` folder
+2. Load the extension in Chrome:
+   - Navigate to `chrome://extensions/`
+   - Enable "Developer mode" (toggle in top-right)
+   - Click "Load unpacked"
+   - Select the `dist` folder from this repository
+
+### API Key Configuration
+
+Browser Pal requires an OpenAI API key to function. After installation:
+
+1. **Get your OpenAI API key:**
+   - Visit [OpenAI API Keys](https://platform.openai.com/api-keys)
+   - Sign in or create an account
+   - Create a new API key
+
+2. **Set the API key in the extension:**
+   - Open Chrome DevTools (F12) on any page
+   - Go to the Console tab
+   - Run the following command:
+   ```javascript
+   chrome.storage.local.set({openaiApiKey: 'sk-your-api-key-here'})
+   ```
+   - Replace `sk-your-api-key-here` with your actual API key
+
+3. **Verify it's set:**
+   ```javascript
+   chrome.storage.local.get(['openaiApiKey'], (result) => console.log(result))
+   ```
+
+**Note:** Your API key is stored locally in your browser and never sent anywhere except to OpenAI's API.
 
 ## Development
 
@@ -61,6 +90,13 @@ Use {{selection}} for selected text.
 - `name` - Command identifier (used with `/` prefix)
 - `description` - Shown in command palette
 - `requiresSelection` - If true, command requires text selection
+
+## Usage
+
+1. Press `Ctrl+Shift+K` (or `Cmd+Shift+K` on Mac) to open the command palette
+2. Type `/` followed by a command name (e.g., `/tldr`)
+3. Press Enter to execute
+4. View the AI-generated response in the modal
 
 ## Architecture
 
