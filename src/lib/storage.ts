@@ -31,11 +31,24 @@ export async function getState(): Promise<State> {
 
 export async function getApiKey(): Promise<string | null> {
     const result = await chrome.storage.local.get(['openaiApiKey'])
-    return result.openaiApiKey || null
+    const value = (result as Record<string, unknown>).openaiApiKey
+    return typeof value === 'string' ? value : null
 }
 
 export async function setApiKey(key: string): Promise<void> {
     await chrome.storage.local.set({ openaiApiKey: key })
+}
+
+export async function getSidebarContent(groupId: number): Promise<string | null> {
+    const key = `sidebar_content_${groupId}`
+    const result = await chrome.storage.local.get([key])
+    const value = (result as Record<string, unknown>)[key]
+    return typeof value === 'string' ? value : null
+}
+
+export async function setSidebarContent(groupId: number, content: string): Promise<void> {
+    const key = `sidebar_content_${groupId}`
+    await chrome.storage.local.set({ [key]: content })
 }
 
 export type { State }

@@ -1,5 +1,6 @@
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
+import { getSidebarContent, setSidebarContent } from '../lib/storage'
 
 const editor = document.getElementById('editor') as HTMLDivElement
 
@@ -8,6 +9,62 @@ if (!editor) {
 }
 
 console.log('[Side Panel] Editor initialized', editor)
+
+let currentGroupId: number | null = null
+let saveTimeout: number | null = null
+
+async function getCurrentGroupId(): Promise<number | null> {
+    try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+        const tabId = tabs[0]?.id
+        if (!tabId) return null
+
+        const tab = await chrome.tabs.get(tabId)
+        return tab.groupId !== -1 ? tab.groupId : null
+    } catch (error) {
+        console.error('[Side Panel] Error getting group ID:', error)
+        return null
+    }
+}
+
+async function loadContent(): Promise<void> {
+    const groupId = await getCurrentGroupId()
+    if (groupId === null) {
+        console.log('[Side Panel] No group ID, starting with empty editor')
+        currentGroupId = null
+        return
+    }
+
+    currentGroupId = groupId
+    const savedContent = await getSidebarContent(groupId)
+
+    if (savedContent) {
+        console.log('[Side Panel] Loading saved content for group:', groupId)
+        editor.innerHTML = savedContent
+        handlePlaceholder()
+    } else {
+        console.log('[Side Panel] No saved content for group:', groupId)
+    }
+}
+
+function saveContent(): void {
+    if (currentGroupId === null) return
+
+    const content = editor.innerHTML
+    if (saveTimeout !== null) {
+        clearTimeout(saveTimeout)
+    }
+
+    saveTimeout = window.setTimeout(async () => {
+        try {
+            await setSidebarContent(currentGroupId!, content)
+            console.log('[Side Panel] Content saved for group:', currentGroupId)
+        } catch (error) {
+            console.error('[Side Panel] Error saving content:', error)
+        }
+        saveTimeout = null
+    }, 500)
+}
 
 function insertMarkdownAtCursor(markdown: string): void {
     const selection = window.getSelection()
@@ -118,6 +175,7 @@ async function executeCommand(command: string): Promise<void> {
             loadingIndicator.container.remove()
             insertMarkdownAtCursor(response.response)
             console.log(`[Side Panel] Markdown inserted successfully`)
+            saveContent()
         } else {
             console.error(`[Side Panel] Command /${command} failed:`, response.error)
             loadingIndicator.stop()
@@ -235,6 +293,7 @@ function detectCommand(lineText: string): string | null {
 
 editor.addEventListener('input', () => {
     handlePlaceholder()
+    saveContent()
 })
 
 editor.addEventListener('keydown', (e) => {
@@ -296,4 +355,6 @@ editor.addEventListener('keydown', (e) => {
     }
 })
 
-handlePlaceholder()
+loadContent().then(() => {
+    handlePlaceholder()
+})
