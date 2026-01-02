@@ -7,7 +7,8 @@
         "storage",
         "activeTab",
         "tabs",
-        "scripting"
+        "scripting",
+        "sidePanel"
     ],
     "host_permissions": [
         "<all_urls>"
@@ -16,22 +17,8 @@
         "service_worker": "src/background/service-worker.ts",
         "type": "module"
     },
-    "content_scripts": [
-        {
-            "matches": [
-                "<all_urls>"
-            ],
-            "js": [
-                "src/content/index.ts"
-            ]
-        }
-    ],
-    "commands": {
-        "_execute_action": {
-            "suggested_key": {
-                "default": "Ctrl+Shift+K"
-            },
-            "description": "Open command palette"
-        }
+    "action": {},
+    "side_panel": {
+        "default_path": "src/sidepanel/editor.html"
     }
 }

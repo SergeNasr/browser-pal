@@ -56,30 +56,46 @@ async function callOpenAI(prompt: string): Promise<string> {
 async function handleExecuteCommand(
     message: ExecuteCommandMessage,
     sender: chrome.runtime.MessageSender
-): Promise<{ success: boolean; response?: string; error?: string }> {
+): Promise<void> {
     try {
         const cmd = await loadCommand(message.command)
         const tabId = sender.tab?.id
 
         if (!tabId) {
-            return { success: false, error: 'No active tab' }
+            console.error('Command execution failed: No active tab')
+            return
         }
 
         const pageContent = await getPageContent(tabId)
         const prompt = processTemplate(cmd.template, pageContent, message.selection)
         const response = await callOpenAI(prompt)
 
-        return { success: true, response }
+        console.log('Command executed successfully:', message.command)
+        console.log('Response:', response)
     } catch (error) {
-        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+        console.error('Command execution failed:', error instanceof Error ? error.message : 'Unknown error')
     }
 }
+
+chrome.action.onClicked.addListener(async (tab) => {
+    console.log('action clicked', tab)
+    if (!tab.id) return
+
+    try {
+        await chrome.sidePanel.open({ tabId: tab.id })
+    } catch (error) {
+        console.error('Side panel toggle failed:', error)
+    }
+})
 
 chrome.runtime.onMessage.addListener(
     (message: ExecuteCommandMessage, sender: chrome.runtime.MessageSender, sendResponse) => {
         if (message.type === 'executeCommand') {
-            handleExecuteCommand(message, sender).then(sendResponse)
+            handleExecuteCommand(message, sender).then(() => {
+                sendResponse({ success: true })
+            })
             return true
         }
     }
 )
+
