@@ -50,52 +50,52 @@ function createLoadingIndicator(command: string): { container: HTMLSpanElement; 
     const container = document.createElement('span')
     container.className = 'loading-indicator'
     container.textContent = `Executing /${command}`
-    
+
     const dotsSpan = document.createElement('span')
     dotsSpan.className = 'loading-dots'
     dotsSpan.textContent = '...'
     container.appendChild(dotsSpan)
-    
+
     let dotCount = 0
     let intervalId: number | null = null
-    
+
     const updateDots = () => {
         dotCount = (dotCount + 1) % 4
         dotsSpan.textContent = '.'.repeat(dotCount)
     }
-    
+
     const start = () => {
         intervalId = window.setInterval(updateDots, 500)
     }
-    
+
     const stop = () => {
         if (intervalId !== null) {
             clearInterval(intervalId)
             intervalId = null
         }
     }
-    
+
     start()
-    
+
     return { container, updateDots, stop }
 }
 
 async function executeCommand(command: string): Promise<void> {
     console.log(`[Side Panel] Command detected: /${command}`)
     console.log(`[Side Panel] Executing command: /${command}`)
-    
+
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) {
         console.error('[Side Panel] No selection available')
         return
     }
-    
+
     const range = selection.getRangeAt(0)
     const loadingIndicator = createLoadingIndicator(command)
-    
+
     range.deleteContents()
     range.insertNode(loadingIndicator.container)
-    
+
     const newRange = range.cloneRange()
     newRange.setStartAfter(loadingIndicator.container)
     newRange.collapse(true)
@@ -137,30 +137,30 @@ async function executeCommand(command: string): Promise<void> {
 function getCurrentLineText(range: Range): { text: string; lineRange: Range } | null {
     const startContainer = range.startContainer
     const startOffset = range.startOffset
-    
+
     const fullText = editor.textContent || editor.innerText || ''
     const beforeCursor = fullText.substring(0, getTextOffsetBeforeCursor(range))
-    
+
     const lastNewline = beforeCursor.lastIndexOf('\n')
     const lineStartOffset = lastNewline + 1
     const lineEndOffset = fullText.indexOf('\n', getTextOffsetBeforeCursor(range))
     const actualLineEnd = lineEndOffset === -1 ? fullText.length : lineEndOffset
-    
+
     const lineText = fullText.substring(lineStartOffset, actualLineEnd).trim()
-    
+
     if (!lineText) {
         return null
     }
-    
+
     const lineRange = document.createRange()
     try {
         const startPos = findTextPosition(editor, lineStartOffset)
         const endPos = findTextPosition(editor, actualLineEnd)
-        
+
         if (startPos && endPos) {
             lineRange.setStart(startPos.node, startPos.offset)
             lineRange.setEnd(endPos.node, endPos.offset)
-            
+
             return {
                 text: lineText,
                 lineRange,
@@ -169,7 +169,7 @@ function getCurrentLineText(range: Range): { text: string; lineRange: Range } | 
     } catch (error) {
         console.error('[Side Panel] Error creating line range:', error)
     }
-    
+
     return null
 }
 
@@ -187,7 +187,7 @@ function findTextPosition(container: Node, targetOffset: number): { node: Node; 
         NodeFilter.SHOW_TEXT,
         null
     )
-    
+
     let node: Node | null
     while ((node = walker.nextNode())) {
         const textLength = node.textContent?.length || 0
@@ -199,7 +199,7 @@ function findTextPosition(container: Node, targetOffset: number): { node: Node; 
         }
         currentOffset += textLength
     }
-    
+
     const lastTextNode = getLastTextNode(container)
     if (lastTextNode) {
         return {
@@ -207,7 +207,7 @@ function findTextPosition(container: Node, targetOffset: number): { node: Node; 
             offset: lastTextNode.textContent?.length || 0
         }
     }
-    
+
     return null
 }
 
@@ -243,33 +243,33 @@ editor.addEventListener('keydown', (e) => {
         ctrlKey: e.ctrlKey,
         metaKey: e.metaKey
     })
-    
+
     if (e.key === 'Enter' && !e.shiftKey) {
         const selection = window.getSelection()
         if (!selection || selection.rangeCount === 0) {
             console.log('[Side Panel] No selection on Enter key')
             return
         }
-        
+
         const range = selection.getRangeAt(0)
         const fullText = editor.textContent || editor.innerText || ''
         const cursorOffset = getTextOffsetBeforeCursor(range)
         const beforeCursor = fullText.substring(0, cursorOffset)
         const lastNewline = beforeCursor.lastIndexOf('\n')
         const currentLine = fullText.substring(lastNewline + 1, cursorOffset).trim()
-        
+
         console.log('[Side Panel] Enter pressed, checking for command...', {
             currentLine,
             cursorOffset,
             fullTextLength: fullText.length
         })
-        
+
         const command = detectCommand(currentLine)
-        
+
         if (command) {
             console.log(`[Side Panel] Command detected in input: /${command}`)
             e.preventDefault()
-            
+
             const lineInfo = getCurrentLineText(range)
             if (lineInfo) {
                 selection.removeAllRanges()
@@ -288,7 +288,7 @@ editor.addEventListener('keydown', (e) => {
                 selection.addRange(rangeToDelete)
                 rangeToDelete.deleteContents()
             }
-            
+
             executeCommand(command)
         } else {
             console.log('[Side Panel] No command detected in line:', currentLine)
