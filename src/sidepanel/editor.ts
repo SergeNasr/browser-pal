@@ -29,6 +29,7 @@ async function loadContent(): Promise<void> {
     const groupId = await getCurrentGroupId()
     if (groupId === null) {
         currentGroupId = null
+        window.close()
         return
     }
 
@@ -38,6 +39,13 @@ async function loadContent(): Promise<void> {
     if (savedContent) {
         editor.innerHTML = savedContent
         handlePlaceholder()
+    }
+}
+
+async function checkGroupMembership(): Promise<void> {
+    const groupId = await getCurrentGroupId()
+    if (groupId === null || groupId !== currentGroupId) {
+        window.close()
     }
 }
 
@@ -327,3 +335,5 @@ editor.addEventListener('keydown', (e) => {
 loadContent().then(() => {
     handlePlaceholder()
 })
+
+setInterval(checkGroupMembership, 1000)

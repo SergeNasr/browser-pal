@@ -88,7 +88,6 @@ async function handleExecuteCommand(
         const prompt = processTemplate(cmd.template, pageContent, message.selection)
         const response = await callOpenAI(prompt)
         const normalizedResponse = normalizeMarkdownSpacing(response)
-        console.log(`[Service Worker] Response: ${normalizedResponse}`)
 
         return { success: true, response: normalizedResponse }
     } catch (error) {
@@ -98,8 +97,7 @@ async function handleExecuteCommand(
     }
 }
 
-chrome.action.onClicked.addListener((tab) => {
-    console.log('action clicked', tab)
+chrome.action.onClicked.addListener(async (tab) => {
     const tabId = tab.id
     if (!tabId) return
 
@@ -107,19 +105,18 @@ chrome.action.onClicked.addListener((tab) => {
         console.error('Side panel open failed:', error)
     })
 
-    chrome.tabs.get(tabId).then((tabInfo) => {
+    try {
+        const tabInfo = await chrome.tabs.get(tabId)
+
         if (tabInfo.groupId === -1) {
-            chrome.tabs.group({ tabIds: [tabId] }).then((groupId) => {
-                chrome.tabGroups.update(groupId, { title: 'Browser Pal' }).catch((error) => {
-                    console.error('Group update failed:', error)
-                })
-            }).catch((error) => {
-                console.error('Group creation failed:', error)
+            const groupId = await chrome.tabs.group({ tabIds: [tabId] })
+            await chrome.tabGroups.update(groupId, { title: 'Browser Pal' }).catch((error) => {
+                console.error('Group update failed:', error)
             })
         }
-    }).catch((error) => {
-        console.error('Tab get failed:', error)
-    })
+    } catch (error) {
+        console.error('Action click handler failed:', error)
+    }
 })
 
 chrome.runtime.onMessage.addListener(
@@ -136,7 +133,6 @@ chrome.runtime.onMessage.addListener(
 chrome.tabGroups.onRemoved.addListener(async (group) => {
     try {
         await deleteSidebarContent(group.id)
-        console.log(`[Service Worker] Deleted sidebar content for group ${group.id}`)
     } catch (error) {
         console.error(`[Service Worker] Error deleting sidebar content for group ${group.id}:`, error)
     }
