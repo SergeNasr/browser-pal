@@ -8,8 +8,6 @@ if (!editor) {
     throw new Error('Editor element not found')
 }
 
-console.log('[Side Panel] Editor initialized', editor)
-
 let currentGroupId: number | null = null
 let saveTimeout: number | null = null
 
@@ -30,7 +28,6 @@ async function getCurrentGroupId(): Promise<number | null> {
 async function loadContent(): Promise<void> {
     const groupId = await getCurrentGroupId()
     if (groupId === null) {
-        console.log('[Side Panel] No group ID, starting with empty editor')
         currentGroupId = null
         return
     }
@@ -39,11 +36,8 @@ async function loadContent(): Promise<void> {
     const savedContent = await getSidebarContent(groupId)
 
     if (savedContent) {
-        console.log('[Side Panel] Loading saved content for group:', groupId)
         editor.innerHTML = savedContent
         handlePlaceholder()
-    } else {
-        console.log('[Side Panel] No saved content for group:', groupId)
     }
 }
 
@@ -58,7 +52,6 @@ function saveContent(): void {
     saveTimeout = window.setTimeout(async () => {
         try {
             await setSidebarContent(currentGroupId!, content)
-            console.log('[Side Panel] Content saved for group:', currentGroupId)
         } catch (error) {
             console.error('[Side Panel] Error saving content:', error)
         }
@@ -138,9 +131,6 @@ function createLoadingIndicator(command: string): { container: HTMLSpanElement; 
 }
 
 async function executeCommand(command: string): Promise<void> {
-    console.log(`[Side Panel] Command detected: /${command}`)
-    console.log(`[Side Panel] Executing command: /${command}`)
-
     const selection = window.getSelection()
     if (!selection || selection.rangeCount === 0) {
         console.error('[Side Panel] No selection available')
@@ -160,21 +150,16 @@ async function executeCommand(command: string): Promise<void> {
     selection.addRange(newRange)
 
     try {
-        console.log(`[Side Panel] Sending message to service worker for command: /${command}`)
         const response = await chrome.runtime.sendMessage({
             type: 'executeCommand',
             command: command,
             selection: '',
         })
 
-        console.log(`[Side Panel] Received response for /${command}:`, response)
-
         if (response.success && response.response) {
-            console.log(`[Side Panel] Command /${command} executed successfully, inserting markdown`)
             loadingIndicator.stop()
             loadingIndicator.container.remove()
             insertMarkdownAtCursor(response.response)
-            console.log(`[Side Panel] Markdown inserted successfully`)
             saveContent()
         } else {
             console.error(`[Side Panel] Command /${command} failed:`, response.error)
@@ -297,16 +282,9 @@ editor.addEventListener('input', () => {
 })
 
 editor.addEventListener('keydown', (e) => {
-    console.log('[Side Panel] Keydown event:', e.key, {
-        shiftKey: e.shiftKey,
-        ctrlKey: e.ctrlKey,
-        metaKey: e.metaKey
-    })
-
     if (e.key === 'Enter' && !e.shiftKey) {
         const selection = window.getSelection()
         if (!selection || selection.rangeCount === 0) {
-            console.log('[Side Panel] No selection on Enter key')
             return
         }
 
@@ -317,16 +295,9 @@ editor.addEventListener('keydown', (e) => {
         const lastNewline = beforeCursor.lastIndexOf('\n')
         const currentLine = fullText.substring(lastNewline + 1, cursorOffset).trim()
 
-        console.log('[Side Panel] Enter pressed, checking for command...', {
-            currentLine,
-            cursorOffset,
-            fullTextLength: fullText.length
-        })
-
         const command = detectCommand(currentLine)
 
         if (command) {
-            console.log(`[Side Panel] Command detected in input: /${command}`)
             e.preventDefault()
 
             const lineInfo = getCurrentLineText(range)
@@ -349,8 +320,6 @@ editor.addEventListener('keydown', (e) => {
             }
 
             executeCommand(command)
-        } else {
-            console.log('[Side Panel] No command detected in line:', currentLine)
         }
     }
 })
