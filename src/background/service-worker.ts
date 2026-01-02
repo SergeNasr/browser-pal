@@ -56,24 +56,43 @@ async function callOpenAI(prompt: string): Promise<string> {
 async function handleExecuteCommand(
     message: ExecuteCommandMessage,
     sender: chrome.runtime.MessageSender
-): Promise<void> {
+): Promise<{ success: boolean; response?: string; error?: string }> {
+    console.log(`[Service Worker] Received command execution request: /${message.command}`)
+
     try {
+        console.log(`[Service Worker] Loading command: /${message.command}`)
         const cmd = await loadCommand(message.command)
-        const tabId = sender.tab?.id
+        console.log(`[Service Worker] Command loaded: /${message.command}`)
+
+        let tabId = sender.tab?.id
 
         if (!tabId) {
-            console.error('Command execution failed: No active tab')
-            return
+            console.log(`[Service Worker] No tab in sender, querying active tab`)
+            const tabs = await chrome.tabs.query({ active: true, currentWindow: true })
+            tabId = tabs[0]?.id
         }
 
-        const pageContent = await getPageContent(tabId)
-        const prompt = processTemplate(cmd.template, pageContent, message.selection)
-        const response = await callOpenAI(prompt)
+        if (!tabId) {
+            console.error(`[Service Worker] No active tab found for command: /${message.command}`)
+            return { success: false, error: 'No active tab found' }
+        }
 
-        console.log('Command executed successfully:', message.command)
-        console.log('Response:', response)
+        console.log(`[Service Worker] Getting page content from tab ${tabId}`)
+        const pageContent = await getPageContent(tabId)
+        console.log(`[Service Worker] Page content retrieved (${pageContent.length} chars)`)
+
+        console.log(`[Service Worker] Processing template for /${message.command}`)
+        const prompt = processTemplate(cmd.template, pageContent, message.selection)
+
+        console.log(`[Service Worker] Calling OpenAI API for /${message.command}`)
+        const response = await callOpenAI(prompt)
+        console.log(`[Service Worker] OpenAI API response received (${response.length} chars) for /${message.command}`)
+
+        return { success: true, response }
     } catch (error) {
-        console.error('Command execution failed:', error instanceof Error ? error.message : 'Unknown error')
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+        console.error(`[Service Worker] Command execution failed for /${message.command}:`, errorMessage)
+        return { success: false, error: errorMessage }
     }
 }
 
@@ -104,8 +123,10 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.runtime.onMessage.addListener(
     (message: ExecuteCommandMessage, sender: chrome.runtime.MessageSender, sendResponse) => {
         if (message.type === 'executeCommand') {
-            handleExecuteCommand(message, sender).then(() => {
-                sendResponse({ success: true })
+            console.log(`[Service Worker] Message received: executeCommand for /${message.command}`)
+            handleExecuteCommand(message, sender).then((result) => {
+                console.log(`[Service Worker] Sending response for /${message.command}:`, result.success ? 'success' : 'error')
+                sendResponse(result)
             })
             return true
         }
