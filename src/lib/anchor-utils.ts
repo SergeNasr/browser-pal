@@ -23,7 +23,24 @@ export function createAnchorFromRange(range: Range, container: HTMLElement): Tex
 
 export function findRangeFromAnchor(anchor: TextAnchor, container: HTMLElement): Range | null {
     try {
+        if (!container.isConnected) {
+            return null
+        }
+
         const range = toRange(container, anchor)
+
+        if (!range) {
+            return null
+        }
+
+        if (!range.startContainer || !range.endContainer) {
+            return null
+        }
+
+        if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) {
+            return null
+        }
+
         return range
     } catch (error) {
         console.error('[Anchor Utils] Error finding range from anchor:', error)
