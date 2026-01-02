@@ -11,6 +11,22 @@
 <body>
     <div class="editor-container">
         <div id="editor" contenteditable="true" data-placeholder="Start writing..."></div>
+        <div id="thread-panel" class="thread-panel collapsed">
+            <div class="thread-panel-header">
+                <button class="thread-panel-toggle">▼</button>
+                <span class="thread-panel-title">Thread</span>
+                <div class="thread-panel-actions">
+                    <button class="thread-delete-btn" title="Delete thread">Delete</button>
+                </div>
+                <button class="thread-panel-close">×</button>
+            </div>
+            <div class="thread-panel-content">
+                <div class="thread-messages"></div>
+                <div class="thread-input-container">
+                    <input type="text" class="thread-input" placeholder="Type a message...">
+                </div>
+            </div>
+        </div>
     </div>
     <script type="module" src="editor.ts"></script>
 </body>
