@@ -82,7 +82,11 @@ chrome.action.onClicked.addListener(async (tab) => {
     if (!tab.id) return
 
     try {
-        await chrome.sidePanel.open({ tabId: tab.id })
+        const tabInfo = await chrome.tabs.get(tab.id)
+        if (tabInfo.groupId === -1) {
+            const groupId = await chrome.tabs.group({ tabIds: [tab.id] })
+            await chrome.tabGroups.update(groupId, { title: 'Browser Pal' })
+        }
     } catch (error) {
         console.error('Side panel toggle failed:', error)
     }
