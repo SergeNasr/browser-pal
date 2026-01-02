@@ -29,4 +29,13 @@ export async function getState(): Promise<State> {
     return result as State
 }
 
+export async function getApiKey(): Promise<string | null> {
+    const result = await chrome.storage.local.get(['openaiApiKey'])
+    return result.openaiApiKey || null
+}
+
+export async function setApiKey(key: string): Promise<void> {
+    await chrome.storage.local.set({ openaiApiKey: key })
+}
+
 export type { State }
