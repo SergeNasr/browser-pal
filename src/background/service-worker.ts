@@ -77,19 +77,28 @@ async function handleExecuteCommand(
     }
 }
 
-chrome.action.onClicked.addListener(async (tab) => {
+chrome.action.onClicked.addListener((tab) => {
     console.log('action clicked', tab)
-    if (!tab.id) return
+    const tabId = tab.id
+    if (!tabId) return
 
-    try {
-        const tabInfo = await chrome.tabs.get(tab.id)
+    chrome.sidePanel.open({ tabId }).catch((error) => {
+        console.error('Side panel open failed:', error)
+    })
+
+    chrome.tabs.get(tabId).then((tabInfo) => {
         if (tabInfo.groupId === -1) {
-            const groupId = await chrome.tabs.group({ tabIds: [tab.id] })
-            await chrome.tabGroups.update(groupId, { title: 'Browser Pal' })
+            chrome.tabs.group({ tabIds: [tabId] }).then((groupId) => {
+                chrome.tabGroups.update(groupId, { title: 'Browser Pal' }).catch((error) => {
+                    console.error('Group update failed:', error)
+                })
+            }).catch((error) => {
+                console.error('Group creation failed:', error)
+            })
         }
-    } catch (error) {
-        console.error('Side panel toggle failed:', error)
-    }
+    }).catch((error) => {
+        console.error('Tab get failed:', error)
+    })
 })
 
 chrome.runtime.onMessage.addListener(
