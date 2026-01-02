@@ -1,5 +1,5 @@
 import { loadCommand } from '../lib/command-loader'
-import { getApiKey } from '../lib/storage'
+import { getApiKey, deleteSidebarContent } from '../lib/storage'
 
 interface ExecuteCommandMessage {
     type: 'executeCommand'
@@ -8,6 +8,13 @@ interface ExecuteCommandMessage {
 }
 
 async function getPageContent(tabId: number): Promise<string> {
+    const tab = await chrome.tabs.get(tabId)
+    const url = tab.url || ''
+
+    if (url.startsWith('chrome://') || url.startsWith('chrome-extension://') || url.startsWith('edge://')) {
+        throw new Error(`Cannot access ${url.startsWith('chrome://') ? 'chrome://' : url.startsWith('edge://') ? 'edge://' : 'extension'} URLs`)
+    }
+
     const results = await chrome.scripting.executeScript({
         target: { tabId },
         func: () => {
@@ -23,6 +30,11 @@ function processTemplate(template: string, pageContent: string, selection: strin
     return template
         .replace(/\{\{pageContent\}\}/g, pageContent)
         .replace(/\{\{selection\}\}/g, selection)
+}
+
+function normalizeMarkdownSpacing(markdown: string): string {
+    if (!markdown) return markdown
+    return markdown.replace(/(^-\s.*)\n\n(?=-\s)/gm, '$1\n')
 }
 
 async function callOpenAI(prompt: string): Promise<string> {
@@ -75,8 +87,10 @@ async function handleExecuteCommand(
         const pageContent = await getPageContent(tabId)
         const prompt = processTemplate(cmd.template, pageContent, message.selection)
         const response = await callOpenAI(prompt)
+        const normalizedResponse = normalizeMarkdownSpacing(response)
+        console.log(`[Service Worker] Response: ${normalizedResponse}`)
 
-        return { success: true, response }
+        return { success: true, response: normalizedResponse }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error(`[Service Worker] Command execution failed for /${message.command}:`, errorMessage)
@@ -118,4 +132,13 @@ chrome.runtime.onMessage.addListener(
         }
     }
 )
+
+chrome.tabGroups.onRemoved.addListener(async (group) => {
+    try {
+        await deleteSidebarContent(group.id)
+        console.log(`[Service Worker] Deleted sidebar content for group ${group.id}`)
+    } catch (error) {
+        console.error(`[Service Worker] Error deleting sidebar content for group ${group.id}:`, error)
+    }
+})
 

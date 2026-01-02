@@ -51,4 +51,9 @@ export async function setSidebarContent(groupId: number, content: string): Promi
     await chrome.storage.local.set({ [key]: content })
 }
 
+export async function deleteSidebarContent(groupId: number): Promise<void> {
+    const key = `sidebar_content_${groupId}`
+    await chrome.storage.local.remove([key])
+}
+
 export type { State }
