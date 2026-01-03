@@ -4,7 +4,7 @@ Chrome extension providing a command palette for AI-powered browsing commands.
 
 ## Features
 
-- Command palette activated with `Ctrl+Shift+K`
+- Command palette in side panel
 - Extensible command system via markdown files
 - Text selection support for commands
 - Fuzzy search with `/` prefix
@@ -62,7 +62,7 @@ pnpm dev
 ### tldr
 Summarizes the current page in 3-5 bullet points.
 
-**Usage:** `Ctrl+Shift+K` → type `/tldr` → Enter
+**Usage:** Open side panel → Type `/tldr` → Enter
 
 ## Creating Commands
 
@@ -93,10 +93,12 @@ Use {{selection}} for selected text.
 
 ## Usage
 
-1. Press `Ctrl+Shift+K` (or `Cmd+Shift+K` on Mac) to open the command palette
-2. Type `/` followed by a command name (e.g., `/tldr`)
-3. Press Enter to execute
-4. View the AI-generated response in the modal
+## Usage
+
+1. Click the Browser Pal extension icon in your browser toolbar
+2. This will open the side panel
+3. Use the command palette within the side panel to run AI commands
+4. Select text on the web page to use it with commands
 
 ## Architecture
 
