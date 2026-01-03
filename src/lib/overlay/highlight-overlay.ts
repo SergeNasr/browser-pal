@@ -5,6 +5,11 @@ export interface HighlightClickEvent {
     highlightId: string
 }
 
+export interface HighlightUpdatedEvent {
+    highlightId: string
+    newExact: string
+}
+
 /**
  * Manages highlight overlay rendering.
  * Renders highlights as absolutely-positioned divs instead of inline spans.
@@ -18,6 +23,7 @@ export class HighlightOverlayManager {
     private highlights: Map<string, { anchor: TextAnchor }> = new Map()
     private pendingRecalc = false
     private onHighlightClick: ((event: HighlightClickEvent) => void) | null = null
+    private onHighlightUpdated: ((event: HighlightUpdatedEvent) => void) | null = null
 
     constructor(editorContainer: HTMLElement) {
         this.container = editorContainer
@@ -52,11 +58,16 @@ export class HighlightOverlayManager {
             this.scheduleRecalculation()
         }, { passive: true })
 
-        // Resize - recalculate positions
+        // Container resize - recalculate positions
         const resizeObserver = new ResizeObserver(() => {
             this.scheduleRecalculation()
         })
         resizeObserver.observe(this.container)
+
+        // Window resize - recalculate positions
+        window.addEventListener('resize', () => {
+            this.scheduleRecalculation()
+        })
 
         // Font loading - recalculate after fonts load
         document.fonts.ready.then(() => {
@@ -69,6 +80,13 @@ export class HighlightOverlayManager {
      */
     setClickHandler(handler: (event: HighlightClickEvent) => void): void {
         this.onHighlightClick = handler
+    }
+
+    /**
+     * Register handler for when a highlight's text is updated (user edited the highlighted text).
+     */
+    setUpdateHandler(handler: (event: HighlightUpdatedEvent) => void): void {
+        this.onHighlightUpdated = handler
     }
 
     /**
@@ -121,12 +139,24 @@ export class HighlightOverlayManager {
 
         for (const result of results) {
             this.updateOverlayElements(result.id, result.rects)
+
+            // If the text was edited, update the anchor and notify
+            if (result.updatedExact) {
+                const highlight = this.highlights.get(result.id)
+                if (highlight) {
+                    highlight.anchor.exact = result.updatedExact
+                    this.onHighlightUpdated?.({
+                        highlightId: result.id,
+                        newExact: result.updatedExact
+                    })
+                }
+            }
         }
     }
 
     private renderHighlight(id: string, anchor: TextAnchor): void {
-        const rects = this.positionCalculator.getRectsForAnchor(anchor)
-        const containerRects = this.positionCalculator.toContainerRelative(rects)
+        const result = this.positionCalculator.getRectsForAnchor(anchor)
+        const containerRects = this.positionCalculator.toContainerRelative(result.rects)
         this.updateOverlayElements(id, containerRects)
     }
 

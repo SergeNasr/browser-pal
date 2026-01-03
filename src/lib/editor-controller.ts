@@ -1,5 +1,5 @@
 import { TextAnchor, Highlight } from './storage'
-import { HighlightOverlayManager, HighlightClickEvent } from './overlay/highlight-overlay'
+import { HighlightOverlayManager, HighlightClickEvent, HighlightUpdatedEvent } from './overlay/highlight-overlay'
 import { createAnchorFromRange } from './anchor-utils'
 
 export interface SelectionInfo {
@@ -11,6 +11,7 @@ export interface EditorEvents {
     onContentChange: () => void
     onSelectionChange: (selection: SelectionInfo | null) => void
     onHighlightClick: (highlightId: string) => void
+    onHighlightUpdated: (highlightId: string, newExact: string) => void
 }
 
 /**
@@ -52,6 +53,17 @@ export class EditorController {
         // Highlight clicks
         this.overlayManager.setClickHandler((event: HighlightClickEvent) => {
             this.events.onHighlightClick?.(event.highlightId)
+        })
+
+        // Highlight text updates (when user edits highlighted text)
+        this.overlayManager.setUpdateHandler((event: HighlightUpdatedEvent) => {
+            // Update our local copy of the highlight
+            const highlight = this.highlights.get(event.highlightId)
+            if (highlight) {
+                highlight.anchor.exact = event.newExact
+            }
+            // Notify listeners so they can save the updated highlight
+            this.events.onHighlightUpdated?.(event.highlightId, event.newExact)
         })
     }
 
@@ -264,6 +276,10 @@ export class EditorController {
 
     onHighlightClick(callback: (highlightId: string) => void): void {
         this.events.onHighlightClick = callback
+    }
+
+    onHighlightUpdated(callback: (highlightId: string, newExact: string) => void): void {
+        this.events.onHighlightUpdated = callback
     }
 
     // ==================== Utilities ====================

@@ -135,6 +135,12 @@ function init() {
         // In the real app, this would open the thread panel
     })
 
+    // Handle highlight text updates (when user edits highlighted text)
+    controller.onHighlightUpdated((highlightId, newExact) => {
+        updateStatus(`Highlight updated: "${newExact.substring(0, 30)}${newExact.length > 30 ? '...' : ''}"`)
+        updateHighlightList()
+    })
+
     // Helper to update status
     function updateStatus(message: string) {
         statusEl.textContent = message
@@ -144,9 +150,13 @@ function init() {
     // Helper to update highlight list
     function updateHighlightList() {
         const highlights = controller.getAllHighlights()
+        if (highlights.length === 0) {
+            highlightListEl.innerHTML = '<em style="font-size: 0.8em; color: #999;">No highlights yet</em>'
+            return
+        }
         highlightListEl.innerHTML = highlights.map(h => `
             <div class="highlight-item">
-                <span>"${h.anchor.exact.substring(0, 20)}${h.anchor.exact.length > 20 ? '...' : ''}"</span>
+                <span title="${h.anchor.exact}">"${h.anchor.exact.substring(0, 20)}${h.anchor.exact.length > 20 ? '...' : ''}"</span>
                 <button data-id="${h.id}">Remove</button>
             </div>
         `).join('')
