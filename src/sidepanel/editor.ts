@@ -10,14 +10,8 @@ import {
     ThreadMessage,
     OldSidepanelContent
 } from '../lib/storage'
-import {
-    generateId,
-    createAnchorFromRange,
-    applyHighlights,
-    removeHighlights,
-    findHighlightElement,
-    applyHighlight as applyHighlightUtil
-} from '../lib/anchor-utils'
+import { generateId } from '../lib/anchor-utils'
+import { EditorController } from '../lib/editor-controller'
 
 async function parseMarkdown(markdown: string): Promise<string> {
     const result = marked.parse(markdown)
@@ -27,7 +21,7 @@ async function parseMarkdown(markdown: string): Promise<string> {
     return result
 }
 
-const editor = document.getElementById('editor') as HTMLDivElement
+const editorElement = document.getElementById('editor') as HTMLDivElement
 const threadPanel = document.getElementById('thread-panel') as HTMLDivElement
 const threadMessages = threadPanel?.querySelector('.thread-messages') as HTMLDivElement
 const threadInput = threadPanel?.querySelector('.thread-input') as HTMLInputElement
@@ -36,15 +30,17 @@ const threadPanelClose = threadPanel?.querySelector('.thread-panel-close') as HT
 const threadDeleteBtn = threadPanel?.querySelector('.thread-delete-btn') as HTMLButtonElement
 const threadPanelContent = threadPanel?.querySelector('.thread-panel-content') as HTMLDivElement
 
-if (!editor) {
+if (!editorElement) {
     throw new Error('Editor element not found')
 }
+
+// Initialize the EditorController (handles highlights via overlay system)
+const editor = new EditorController(editorElement)
 
 let currentGroupId: number | null = null
 let saveTimeout: number | null = null
 let currentData: SidepanelContent | null = null
 let selectedHighlightId: string | null = null
-let isApplyingHighlights = false
 
 async function getCurrentGroupId(): Promise<number | null> {
     try {
@@ -142,17 +138,9 @@ async function loadContent(): Promise<void> {
     }
 
     currentData = data
-    editor.innerHTML = data.content || ''
-    applyHighlightsToEditor()
+    editor.setContent(data.content || '')
+    editor.loadHighlights(data.highlights)
     handlePlaceholder()
-}
-
-function applyHighlightsToEditor(): void {
-    if (!currentData || isApplyingHighlights) return
-
-    isApplyingHighlights = true
-    applyHighlights(currentData.highlights, editor)
-    isApplyingHighlights = false
 }
 
 async function checkGroupMembership(): Promise<void> {
@@ -165,9 +153,10 @@ async function checkGroupMembership(): Promise<void> {
 function saveContent(): void {
     if (currentGroupId === null || !currentData) return
 
-    if (!isApplyingHighlights) {
-        currentData.content = editor.innerHTML
-    }
+    // Update content from editor
+    currentData.content = editor.getContent()
+    // Update highlights from editor (in case anchors were updated due to edits)
+    currentData.highlights = editor.getAllHighlights()
 
     if (saveTimeout !== null) {
         clearTimeout(saveTimeout)
@@ -184,42 +173,18 @@ function saveContent(): void {
 }
 
 async function insertMarkdownAtCursor(markdown: string): Promise<void> {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) {
-        return
-    }
-
-    const range = selection.getRangeAt(0)
-    range.deleteContents()
-
     const html = await parseMarkdown(markdown)
     const sanitizedHtml = DOMPurify.sanitize(html)
-
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = sanitizedHtml
-
-    const fragment = document.createDocumentFragment()
-    while (tempDiv.firstChild) {
-        fragment.appendChild(tempDiv.firstChild)
-    }
-
-    range.insertNode(fragment)
-
-    const newRange = range.cloneRange()
-    newRange.setStartAfter(fragment.lastChild || range.startContainer)
-    newRange.collapse(true)
-    selection.removeAllRanges()
-    selection.addRange(newRange)
-
+    editor.insertAtCursor(sanitizedHtml)
     saveContent()
-    applyHighlightsToEditor()
 }
 
 function handlePlaceholder(): void {
-    if (editor.textContent?.trim() === '') {
-        editor.classList.add('empty')
+    const element = editor.getElement()
+    if (element.textContent?.trim() === '') {
+        element.classList.add('empty')
     } else {
-        editor.classList.remove('empty')
+        element.classList.remove('empty')
     }
 }
 
@@ -304,7 +269,8 @@ async function executeCommand(command: string): Promise<void> {
 }
 
 function getCurrentLineText(range: Range): { text: string; lineRange: Range } | null {
-    const fullText = editor.textContent || editor.innerText || ''
+    const element = editor.getElement()
+    const fullText = element.textContent || element.innerText || ''
     const beforeCursor = fullText.substring(0, getTextOffsetBeforeCursor(range))
 
     const lastNewline = beforeCursor.lastIndexOf('\n')
@@ -320,8 +286,8 @@ function getCurrentLineText(range: Range): { text: string; lineRange: Range } | 
 
     const lineRange = document.createRange()
     try {
-        const startPos = findTextPosition(editor, lineStartOffset)
-        const endPos = findTextPosition(editor, actualLineEnd)
+        const startPos = findTextPosition(element, lineStartOffset)
+        const endPos = findTextPosition(element, actualLineEnd)
 
         if (startPos && endPos) {
             lineRange.setStart(startPos.node, startPos.offset)
@@ -340,8 +306,9 @@ function getCurrentLineText(range: Range): { text: string; lineRange: Range } | 
 }
 
 function getTextOffsetBeforeCursor(range: Range): number {
+    const element = editor.getElement()
     const rangeBefore = range.cloneRange()
-    rangeBefore.selectNodeContents(editor)
+    rangeBefore.selectNodeContents(element)
     rangeBefore.setEnd(range.endContainer, range.endOffset)
     return rangeBefore.toString().length
 }
@@ -399,40 +366,31 @@ function detectCommand(lineText: string): string | null {
     return null
 }
 
-async function createHighlight(range: Range): Promise<void> {
+async function createHighlight(): Promise<void> {
     if (!currentData) {
         currentData = {
-            content: editor.innerHTML,
+            content: editor.getContent(),
             highlights: [],
             version: 2
         }
     }
 
-    const anchor = createAnchorFromRange(range, editor)
-    if (!anchor) return
+    const highlightId = editor.addHighlightFromSelection()
+    if (!highlightId) return
 
-    const highlight: Highlight = {
-        id: generateId(),
-        anchor: anchor,
-        createdAt: Date.now()
+    // Get the created highlight and add thread data structure
+    const highlight = editor.getHighlight(highlightId)
+    if (highlight) {
+        currentData.highlights = editor.getAllHighlights()
+        saveContent()
+        await showThread(highlightId)
     }
-
-    currentData.highlights.push(highlight)
-
-    applyHighlight(highlight, editor)
-    saveContent()
-
-    await showThread(highlight.id)
-}
-
-function applyHighlight(highlight: Highlight, container: HTMLElement): void {
-    applyHighlightUtil(highlight, container)
 }
 
 async function showThread(highlightId: string): Promise<void> {
     if (!currentData || !threadPanel) return
 
-    const highlight = currentData.highlights.find(h => h.id === highlightId)
+    const highlight = editor.getHighlight(highlightId)
     if (!highlight) return
 
     selectedHighlightId = highlightId
@@ -506,7 +464,7 @@ async function renderThreadMessages(thread?: Thread): Promise<void> {
 async function sendThreadMessage(message: string): Promise<void> {
     if (!currentData || !selectedHighlightId) return
 
-    const highlight = currentData.highlights.find(h => h.id === selectedHighlightId)
+    const highlight = editor.getHighlight(selectedHighlightId)
     if (!highlight) return
 
     if (!highlight.thread) {
@@ -526,6 +484,7 @@ async function sendThreadMessage(message: string): Promise<void> {
     }
 
     highlight.thread.messages.push(userMessage)
+    editor.updateHighlight(selectedHighlightId, { thread: highlight.thread })
     renderThreadMessages(highlight.thread)
     saveContent()
 
@@ -546,6 +505,7 @@ async function sendThreadMessage(message: string): Promise<void> {
             }
 
             highlight.thread.messages.push(assistantMessage)
+            editor.updateHighlight(selectedHighlightId, { thread: highlight.thread })
             renderThreadMessages(highlight.thread)
             saveContent()
         }
@@ -557,20 +517,16 @@ async function sendThreadMessage(message: string): Promise<void> {
 async function deleteThread(): Promise<void> {
     if (!currentData || !selectedHighlightId) return
 
-    const highlightIndex = currentData.highlights.findIndex(h => h.id === selectedHighlightId)
-    if (highlightIndex !== -1) {
-        currentData.highlights.splice(highlightIndex, 1)
-        removeHighlights(editor)
-        applyHighlightsToEditor()
-        saveContent()
-        hideThread()
-    }
+    editor.removeHighlight(selectedHighlightId)
+    currentData.highlights = editor.getAllHighlights()
+    saveContent()
+    hideThread()
 }
 
 async function summarizeThread(): Promise<void> {
     if (!currentData || !selectedHighlightId) return
 
-    const highlight = currentData.highlights.find(h => h.id === selectedHighlightId)
+    const highlight = editor.getHighlight(selectedHighlightId)
     if (!highlight || !highlight.thread || highlight.thread.messages.length === 0) return
 
     try {
@@ -585,72 +541,126 @@ async function summarizeThread(): Promise<void> {
             const summaryHtml = await parseMarkdown(response.summary)
             const sanitizedSummary = DOMPurify.sanitize(summaryHtml)
 
-            const selection = window.getSelection()
-            if (selection && selection.rangeCount > 0) {
-                const range = selection.getRangeAt(0)
-                range.collapse(false)
+            const summaryDiv = document.createElement('div')
+            summaryDiv.className = 'summary-section'
+            summaryDiv.innerHTML = `<h3>Summary</h3>${sanitizedSummary}`
 
-                const summaryDiv = document.createElement('div')
-                summaryDiv.className = 'summary-section'
-                summaryDiv.innerHTML = `<h3>Summary</h3>${sanitizedSummary}`
-
-                range.insertNode(summaryDiv)
-
-                saveContent()
-                applyHighlightsToEditor()
-            }
+            editor.insertAtCursor(summaryDiv.outerHTML)
+            saveContent()
         }
     } catch (error) {
         console.error('[Side Panel] Error summarizing thread:', error)
     }
 }
 
-let mouseDownOnHighlight = false
-
-editor.addEventListener('mousedown', (e) => {
-    const target = e.target as HTMLElement
-    const highlightEl = target.closest('.highlight')
-    if (highlightEl) {
-        mouseDownOnHighlight = true
-        e.preventDefault()
-    } else {
-        mouseDownOnHighlight = false
-    }
+// Set up EditorController event handlers
+editor.onContentChange(() => {
+    handlePlaceholder()
+    hideThreadButton()
+    saveContent()
 })
 
-editor.addEventListener('mouseup', async (e) => {
-    const target = e.target as HTMLElement
-    const highlightEl = target.closest('.highlight')
+editor.onHighlightClick((highlightId) => {
+    showThread(highlightId)
+})
 
-    if (highlightEl && mouseDownOnHighlight) {
-        const highlightId = highlightEl.getAttribute('data-highlight-id')
-        if (highlightId) {
-            await showThread(highlightId)
-            e.preventDefault()
-            e.stopPropagation()
-        }
-        window.getSelection()?.removeAllRanges()
-        mouseDownOnHighlight = false
+editor.onHighlightUpdated((highlightId, newExact) => {
+    // Highlight text was edited - save the updated anchor
+    saveContent()
+})
+
+// Thread button for creating new highlights
+const threadButton = document.createElement('button')
+threadButton.className = 'thread-button'
+threadButton.textContent = 'thread'
+threadButton.style.display = 'none'
+const editorContainer = editorElement.parentElement || document.body
+editorContainer.appendChild(threadButton)
+
+let currentSelectionRange: Range | null = null
+
+function showThreadButton(range: Range): void {
+    if (!range || range.collapsed) {
+        hideThreadButton()
         return
     }
 
-    mouseDownOnHighlight = false
-})
+    const selectedText = range.toString().trim()
+    if (selectedText.length === 0) {
+        hideThreadButton()
+        return
+    }
 
-editor.addEventListener('input', () => {
-    handlePlaceholder()
-    hideThreadButton()
+    const rect = range.getBoundingClientRect()
+    const containerRect = editorContainer.getBoundingClientRect()
 
-    if (!isApplyingHighlights) {
-        removeHighlights(editor)
-        saveContent()
-        setTimeout(() => {
-            applyHighlightsToEditor()
-        }, 100)
+    threadButton.style.display = 'block'
+    const buttonWidth = 60
+    const buttonHeight = 28
+    const left = rect.left - containerRect.left + rect.width / 2 - buttonWidth / 2
+    const top = rect.top - containerRect.top - buttonHeight - 8
+
+    threadButton.style.left = `${Math.max(8, Math.min(left, containerRect.width - buttonWidth - 8))}px`
+    threadButton.style.top = `${Math.max(8, top)}px`
+
+    currentSelectionRange = range
+}
+
+function hideThreadButton(): void {
+    threadButton.style.display = 'none'
+    currentSelectionRange = null
+}
+
+threadButton.addEventListener('click', async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (currentSelectionRange) {
+        try {
+            const range = currentSelectionRange.cloneRange()
+            const element = editor.getElement()
+            if (range.collapsed || !element.contains(range.commonAncestorContainer)) {
+                hideThreadButton()
+                return
+            }
+
+            const selection = window.getSelection()
+            if (selection) {
+                selection.removeAllRanges()
+                selection.addRange(range)
+            }
+            await createHighlight()
+            hideThreadButton()
+            if (selection) {
+                selection.removeAllRanges()
+            }
+        } catch (error) {
+            console.error('[Side Panel] Error creating highlight from button:', error)
+            hideThreadButton()
+        }
     }
 })
 
-editor.addEventListener('keydown', (e) => {
+// Selection change handling via EditorController
+editor.onSelectionChange((selection) => {
+    if (!selection) {
+        hideThreadButton()
+        return
+    }
+
+    const element = editor.getElement()
+    if (!element.contains(selection.range.commonAncestorContainer)) {
+        hideThreadButton()
+        return
+    }
+
+    // Don't show thread button if selection is within an existing highlight overlay
+    // (The overlay manager handles highlight clicks)
+    showThreadButton(selection.range)
+})
+
+// Keydown handler for command detection
+editorElement.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         const selection = window.getSelection()
         if (!selection || selection.rangeCount === 0) {
@@ -658,7 +668,8 @@ editor.addEventListener('keydown', (e) => {
         }
 
         const range = selection.getRangeAt(0)
-        const fullText = editor.textContent || editor.innerText || ''
+        const element = editor.getElement()
+        const fullText = element.textContent || element.innerText || ''
         const cursorOffset = getTextOffsetBeforeCursor(range)
         const beforeCursor = fullText.substring(0, cursorOffset)
         const lastNewline = beforeCursor.lastIndexOf('\n')
@@ -676,7 +687,7 @@ editor.addEventListener('keydown', (e) => {
                 lineInfo.lineRange.deleteContents()
             } else {
                 const rangeBefore = range.cloneRange()
-                rangeBefore.selectNodeContents(editor)
+                rangeBefore.selectNodeContents(element)
                 rangeBefore.setEnd(range.endContainer, range.endOffset)
                 const textBefore = rangeBefore.toString()
                 const lineStart = textBefore.lastIndexOf('\n') + 1
@@ -693,6 +704,7 @@ editor.addEventListener('keydown', (e) => {
     }
 })
 
+// Thread panel event listeners
 if (threadPanelToggle) {
     threadPanelToggle.addEventListener('click', () => {
         threadPanel.classList.toggle('collapsed')
@@ -731,132 +743,8 @@ if (threadDeleteBtn) {
     })
 }
 
-const threadButton = document.createElement('button')
-threadButton.className = 'thread-button'
-threadButton.textContent = 'thread'
-threadButton.style.display = 'none'
-const editorContainer = editor.parentElement || document.body
-editorContainer.style.position = 'relative'
-editorContainer.appendChild(threadButton)
-
-let currentSelectionRange: Range | null = null
-
-function showThreadButton(range: Range): void {
-    if (!range || range.collapsed) {
-        hideThreadButton()
-        return
-    }
-
-    const selectedText = range.toString().trim()
-    if (selectedText.length === 0) {
-        hideThreadButton()
-        return
-    }
-
-    const rect = range.getBoundingClientRect()
-    const editorRect = editor.getBoundingClientRect()
-    const containerRect = editorContainer.getBoundingClientRect()
-
-    threadButton.style.display = 'block'
-    const buttonWidth = 60
-    const buttonHeight = 28
-    const left = rect.left - containerRect.left + rect.width / 2 - buttonWidth / 2
-    const top = rect.top - containerRect.top - buttonHeight - 8
-
-    threadButton.style.left = `${Math.max(8, Math.min(left, containerRect.width - buttonWidth - 8))}px`
-    threadButton.style.top = `${Math.max(8, top)}px`
-
-    currentSelectionRange = range
-}
-
-function hideThreadButton(): void {
-    threadButton.style.display = 'none'
-    currentSelectionRange = null
-}
-
-threadButton.addEventListener('click', async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (currentSelectionRange) {
-        try {
-            const range = currentSelectionRange.cloneRange()
-            if (range.collapsed || !editor.contains(range.commonAncestorContainer)) {
-                hideThreadButton()
-                return
-            }
-
-            const selection = window.getSelection()
-            if (selection) {
-                selection.removeAllRanges()
-                selection.addRange(range)
-            }
-            await createHighlight(range)
-            hideThreadButton()
-            if (selection) {
-                selection.removeAllRanges()
-            }
-        } catch (error) {
-            console.error('[Side Panel] Error creating highlight from button:', error)
-            hideThreadButton()
-        }
-    }
-})
-
-function handleSelectionChange(): void {
-    const selection = window.getSelection()
-    if (!selection || selection.rangeCount === 0) {
-        hideThreadButton()
-        return
-    }
-
-    const range = selection.getRangeAt(0)
-
-    if (range.collapsed) {
-        hideThreadButton()
-        return
-    }
-
-    const selectedText = range.toString().trim()
-    if (selectedText.length === 0) {
-        hideThreadButton()
-        return
-    }
-
-    if (!editor.contains(range.commonAncestorContainer)) {
-        hideThreadButton()
-        return
-    }
-
-    const highlightEl = range.commonAncestorContainer.nodeType === Node.ELEMENT_NODE
-        ? (range.commonAncestorContainer as HTMLElement).closest('.highlight')
-        : (range.commonAncestorContainer.parentElement?.closest('.highlight'))
-
-    if (highlightEl) {
-        hideThreadButton()
-        return
-    }
-
-    showThreadButton(range)
-}
-
-document.addEventListener('selectionchange', handleSelectionChange)
-
-editor.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement
-    if (target === threadButton || threadButton.contains(target)) {
-        return
-    }
-
-    const highlightEl = target.closest('.highlight')
-    if (!highlightEl) {
-        setTimeout(() => {
-            handleSelectionChange()
-        }, 0)
-    }
-})
-
-editor.addEventListener('scroll', () => {
+// Scroll/resize handlers for thread button positioning
+editorElement.addEventListener('scroll', () => {
     if (currentSelectionRange && threadButton.style.display !== 'none') {
         showThreadButton(currentSelectionRange)
     }
@@ -874,11 +762,12 @@ document.addEventListener('click', (e) => {
         return
     }
 
-    if (!editor.contains(target)) {
+    if (!editorElement.contains(target)) {
         hideThreadButton()
     }
 })
 
+// Initialize
 loadContent().then(() => {
     handlePlaceholder()
 })
