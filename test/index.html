@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Test Harness</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            height: 100vh;
+            background: #f5f5f5;
+        }
+
+        .sidebar {
+            width: 300px;
+            background: #fff;
+            border-right: 1px solid #e0e0e0;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            overflow-y: auto;
+        }
+
+        .sidebar h2 {
+            font-size: 1em;
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .sidebar button {
+            padding: 8px 12px;
+            background: #0366d6;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875em;
+        }
+
+        .sidebar button:hover {
+            background: #0256b9;
+        }
+
+        .status-panel {
+            background: #f6f8fa;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 0.875em;
+            color: #666;
+        }
+
+        .highlight-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .highlight-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            background: #fff3cd;
+            border-radius: 4px;
+            font-size: 0.8em;
+        }
+
+        .highlight-item button {
+            padding: 4px 8px;
+            background: #dc3545;
+            font-size: 0.75em;
+        }
+
+        .highlight-item button:hover {
+            background: #c82333;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .editor-wrapper {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #editor {
+            width: 100%;
+            height: 100%;
+            padding: 24px;
+            font-size: 14px;
+            line-height: 1.6;
+            background: #fff;
+            overflow-y: auto;
+            outline: none;
+        }
+
+        #editor h1, #editor h2, #editor h3 {
+            margin: 16px 0 8px 0;
+        }
+
+        #editor p {
+            margin: 8px 0;
+        }
+
+        #editor ul, #editor ol {
+            margin: 8px 0;
+            padding-left: 24px;
+        }
+
+        #editor li {
+            margin: 4px 0;
+        }
+
+        #editor blockquote {
+            border-left: 4px solid #dfe2e5;
+            padding-left: 16px;
+            margin: 8px 0;
+            color: #6a737d;
+        }
+
+        #thread-button {
+            position: fixed;
+            display: none;
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 6px 14px;
+            font-size: 0.8125em;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+
+        #thread-button:hover {
+            background: #f5f5f5;
+        }
+
+        .instructions {
+            font-size: 0.8em;
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .instructions li {
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <div>
+            <h2>Test Controls</h2>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button id="add-sample-highlights">Add Sample Highlights</button>
+                <button id="clear-highlights">Clear All Highlights</button>
+            </div>
+        </div>
+
+        <div>
+            <h2>Status</h2>
+            <div id="status" class="status-panel">Initializing...</div>
+        </div>
+
+        <div>
+            <h2>Active Highlights</h2>
+            <div id="highlight-list" class="highlight-list">
+                <em style="font-size: 0.8em; color: #999;">No highlights yet</em>
+            </div>
+        </div>
+
+        <div>
+            <h2>Instructions</h2>
+            <ul class="instructions">
+                <li>Select text in the editor to see the thread button</li>
+                <li>Click the thread button to create a highlight</li>
+                <li>Highlights render as overlays (yellow background)</li>
+                <li>Click a highlight to trigger the click event</li>
+                <li>Edit text and watch highlights reposition</li>
+                <li>Open DevTools console for debug logs</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="editor-wrapper">
+            <div id="editor" contenteditable="true"></div>
+        </div>
+    </div>
+
+    <button id="thread-button">thread</button>
+
+    <script type="module" src="./harness.ts"></script>
+</body>
+</html>
