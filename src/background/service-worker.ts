@@ -44,7 +44,9 @@ function normalizeMarkdownSpacing(markdown: string): string {
     return markdown.replace(/(^-\s.*)\n\n(?=-\s)/gm, '$1\n')
 }
 
-async function callOpenAI(prompt: string): Promise<string> {
+async function callOpenAI(
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+): Promise<string> {
     const apiKey = await getApiKey()
     if (!apiKey) {
         throw new Error('OpenAI API key not configured')
@@ -57,36 +59,8 @@ async function callOpenAI(prompt: string): Promise<string> {
             'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.7,
-        }),
-    })
-
-    if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
-        throw new Error(error.error?.message || `API error: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.choices[0]?.message?.content || ''
-}
-
-async function callOpenAIChat(messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>): Promise<string> {
-    const apiKey = await getApiKey()
-    if (!apiKey) {
-        throw new Error('OpenAI API key not configured')
-    }
-
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            messages: messages,
+            model: 'gpt-5-nano',
+            messages,
             temperature: 0.7,
         }),
     })
@@ -121,7 +95,7 @@ async function handleExecuteCommand(
 
         const pageContent = await getPageContent(tabId)
         const prompt = processTemplate(cmd.template, pageContent, message.selection)
-        const response = await callOpenAI(prompt)
+        const response = await callOpenAI([{ role: 'user', content: prompt }])
         const normalizedResponse = normalizeMarkdownSpacing(response)
 
         return { success: true, response: normalizedResponse }
@@ -168,7 +142,7 @@ Please provide a helpful, concise response to the user's question about this hig
             { role: 'user' as const, content: message.message }
         ]
 
-        const response = await callOpenAIChat(messages)
+        const response = await callOpenAI(messages)
         return { success: true, response }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
