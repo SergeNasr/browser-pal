@@ -24,9 +24,12 @@ export class HighlightOverlayManager {
     private pendingRecalc = false
     private onHighlightClick: ((event: HighlightClickEvent) => void) | null = null
     private onHighlightUpdated: ((event: HighlightUpdatedEvent) => void) | null = null
+    private resizeObserver: ResizeObserver | null = null
+    private boundResizeHandler: () => void
 
     constructor(editorContainer: HTMLElement) {
         this.container = editorContainer
+        this.boundResizeHandler = () => this.scheduleRecalculation()
 
         // Create overlay container
         this.overlayContainer = document.createElement('div')
@@ -50,6 +53,7 @@ export class HighlightOverlayManager {
 
         this.positionCalculator = new PositionCalculator(editorContainer)
         this.setupListeners()
+        this.setupEventDelegation()
     }
 
     private setupListeners(): void {
@@ -59,19 +63,48 @@ export class HighlightOverlayManager {
         }, { passive: true })
 
         // Container resize - recalculate positions
-        const resizeObserver = new ResizeObserver(() => {
+        this.resizeObserver = new ResizeObserver(() => {
             this.scheduleRecalculation()
         })
-        resizeObserver.observe(this.container)
+        this.resizeObserver.observe(this.container)
 
         // Window resize - recalculate positions
-        window.addEventListener('resize', () => {
-            this.scheduleRecalculation()
-        })
+        window.addEventListener('resize', this.boundResizeHandler)
 
         // Font loading - recalculate after fonts load
         document.fonts.ready.then(() => {
             this.scheduleRecalculation()
+        })
+    }
+
+    /**
+     * Set up event delegation for highlight overlays.
+     * Uses a single set of listeners on the container instead of per-overlay listeners.
+     */
+    private setupEventDelegation(): void {
+        this.overlayContainer.addEventListener('mouseenter', (e) => {
+            const target = e.target as HTMLElement
+            if (target.classList.contains('highlight-overlay')) {
+                target.style.backgroundColor = 'rgba(255, 230, 156, 0.9)'
+            }
+        }, true)
+
+        this.overlayContainer.addEventListener('mouseleave', (e) => {
+            const target = e.target as HTMLElement
+            if (target.classList.contains('highlight-overlay')) {
+                target.style.backgroundColor = 'rgba(255, 243, 205, 0.7)'
+            }
+        }, true)
+
+        this.overlayContainer.addEventListener('click', (e) => {
+            const target = e.target as HTMLElement
+            if (target.classList.contains('highlight-overlay')) {
+                e.stopPropagation()
+                const highlightId = target.dataset.highlightId
+                if (highlightId && this.onHighlightClick) {
+                    this.onHighlightClick({ highlightId })
+                }
+            }
         })
     }
 
@@ -174,7 +207,8 @@ export class HighlightOverlayManager {
 
         if (rects.length === 0) return
 
-        // Create one overlay div per line rectangle
+        // Create one overlay div per line rectangle using DocumentFragment for batched DOM insertion
+        const fragment = document.createDocumentFragment()
         const elements: HTMLDivElement[] = []
 
         for (const rect of rects) {
@@ -193,27 +227,14 @@ export class HighlightOverlayManager {
                 cursor: pointer;
                 transition: background-color 0.15s ease;
             `
+            // Event handling is done via delegation in setupEventDelegation()
 
-            // Hover effect
-            overlay.addEventListener('mouseenter', () => {
-                overlay.style.backgroundColor = 'rgba(255, 230, 156, 0.9)'
-            })
-            overlay.addEventListener('mouseleave', () => {
-                overlay.style.backgroundColor = 'rgba(255, 243, 205, 0.7)'
-            })
-
-            // Click handler
-            overlay.addEventListener('click', (e) => {
-                e.stopPropagation()
-                if (this.onHighlightClick) {
-                    this.onHighlightClick({ highlightId: id })
-                }
-            })
-
-            this.overlayContainer.appendChild(overlay)
+            fragment.appendChild(overlay)
             elements.push(overlay)
         }
 
+        // Single DOM operation for all overlays
+        this.overlayContainer.appendChild(fragment)
         this.overlays.set(id, elements)
     }
 
@@ -240,5 +261,14 @@ export class HighlightOverlayManager {
     destroy(): void {
         this.clear()
         this.overlayContainer.remove()
+
+        // Clean up ResizeObserver
+        if (this.resizeObserver) {
+            this.resizeObserver.disconnect()
+            this.resizeObserver = null
+        }
+
+        // Clean up window resize listener
+        window.removeEventListener('resize', this.boundResizeHandler)
     }
 }

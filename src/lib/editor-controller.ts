@@ -1,6 +1,7 @@
 import { TextAnchor, Highlight } from './storage'
 import { HighlightOverlayManager, HighlightClickEvent, HighlightUpdatedEvent } from './overlay/highlight-overlay'
 import { createAnchorFromRange } from './anchor-utils'
+import { default as DOMPurify } from 'dompurify'
 
 export interface SelectionInfo {
     text: string
@@ -87,12 +88,16 @@ export class EditorController {
 
     /**
      * Insert HTML at the current cursor position.
+     * HTML is sanitized with DOMPurify before insertion.
      */
     insertAtCursor(html: string): void {
+        // Sanitize HTML to prevent XSS attacks
+        const sanitizedHtml = DOMPurify.sanitize(html)
+
         const selection = window.getSelection()
         if (!selection || selection.rangeCount === 0) {
             // No selection, append to end
-            this.editor.innerHTML += html
+            this.editor.innerHTML += sanitizedHtml
             this.updateEmptyState()
             this.overlayManager.scheduleRecalculation()
             return
@@ -101,7 +106,7 @@ export class EditorController {
         const range = selection.getRangeAt(0)
         if (!this.editor.contains(range.commonAncestorContainer)) {
             // Selection not in editor, append to end
-            this.editor.innerHTML += html
+            this.editor.innerHTML += sanitizedHtml
             this.updateEmptyState()
             this.overlayManager.scheduleRecalculation()
             return
@@ -110,9 +115,9 @@ export class EditorController {
         // Delete any selected content
         range.deleteContents()
 
-        // Create a temporary container to parse HTML
+        // Create a temporary container to parse sanitized HTML
         const temp = document.createElement('div')
-        temp.innerHTML = html
+        temp.innerHTML = sanitizedHtml
 
         // Insert each node
         const fragment = document.createDocumentFragment()
@@ -285,7 +290,7 @@ export class EditorController {
     // ==================== Utilities ====================
 
     private generateId(): string {
-        return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
     }
 
     /**

@@ -90,16 +90,22 @@ function init() {
     controller.onSelectionChange((selection) => {
         currentSelection = selection
 
-        if (selection && !controller.isPointInHighlight(0, 0)) {
-            // Show thread button near selection
+        if (selection) {
+            // Check if the selection start point is within a highlight
             const range = selection.range
             const rect = range.getBoundingClientRect()
+            const isInHighlight = controller.isPointInHighlight(rect.left, rect.top)
 
-            threadButton.style.display = 'block'
-            threadButton.style.left = `${rect.left + rect.width / 2 - 40}px`
-            threadButton.style.top = `${rect.top - 40}px`
-
-            updateStatus(`Selected: "${selection.text.substring(0, 30)}${selection.text.length > 30 ? '...' : ''}"`)
+            if (!isInHighlight) {
+                // Show thread button near selection
+                threadButton.style.display = 'block'
+                threadButton.style.left = `${rect.left + rect.width / 2 - 40}px`
+                threadButton.style.top = `${rect.top - 40}px`
+                updateStatus(`Selected: "${selection.text.substring(0, 30)}${selection.text.length > 30 ? '...' : ''}"`)
+            } else {
+                threadButton.style.display = 'none'
+                updateStatus('Selection is within a highlight')
+            }
         } else {
             threadButton.style.display = 'none'
             updateStatus('No selection')
