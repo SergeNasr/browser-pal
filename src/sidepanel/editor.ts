@@ -523,36 +523,6 @@ async function deleteThread(): Promise<void> {
     hideThread()
 }
 
-async function summarizeThread(): Promise<void> {
-    if (!currentData || !selectedHighlightId) return
-
-    const highlight = editor.getHighlight(selectedHighlightId)
-    if (!highlight || !highlight.thread || highlight.thread.messages.length === 0) return
-
-    try {
-        const response = await chrome.runtime.sendMessage({
-            type: 'summarizeThread',
-            highlightId: selectedHighlightId,
-            messages: highlight.thread.messages,
-            context: highlight.anchor.exact
-        })
-
-        if (response.success && response.summary) {
-            const summaryHtml = await parseMarkdown(response.summary)
-            const sanitizedSummary = DOMPurify.sanitize(summaryHtml)
-
-            const summaryDiv = document.createElement('div')
-            summaryDiv.className = 'summary-section'
-            summaryDiv.innerHTML = `<h3>Summary</h3>${sanitizedSummary}`
-
-            editor.insertAtCursor(summaryDiv.outerHTML)
-            saveContent()
-        }
-    } catch (error) {
-        console.error('[Side Panel] Error summarizing thread:', error)
-    }
-}
-
 // Set up EditorController event handlers
 editor.onContentChange(() => {
     handlePlaceholder()

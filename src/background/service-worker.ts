@@ -1,5 +1,5 @@
 import { loadCommand } from '../lib/command-loader'
-import { getApiKey, deleteSidebarContent, ThreadMessage } from '../lib/storage'
+import { getApiKey, deleteSidebarContent } from '../lib/storage'
 
 interface ExecuteCommandMessage {
     type: 'executeCommand'
@@ -11,13 +11,6 @@ interface ThreadMessageRequest {
     type: 'threadMessage'
     highlightId: string
     message: string
-    context: string
-}
-
-interface SummarizeThreadRequest {
-    type: 'summarizeThread'
-    highlightId: string
-    messages: ThreadMessage[]
     context: string
 }
 
@@ -184,33 +177,8 @@ Please provide a helpful, concise response to the user's question about this hig
     }
 }
 
-async function handleSummarizeThread(
-    message: SummarizeThreadRequest,
-    sender: chrome.runtime.MessageSender
-): Promise<{ success: boolean; summary?: string; error?: string }> {
-    try {
-        const conversationText = message.messages
-            .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
-            .join('\n\n')
-
-        const prompt = `The following is a conversation thread about a highlighted section of text: "${message.context}"
-
-Conversation:
-${conversationText}
-
-Please provide a concise summary of this conversation thread. The summary should capture the key points discussed and any conclusions or insights. Format it as markdown.`
-
-        const summary = await callOpenAI(prompt)
-        return { success: true, summary }
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        console.error(`[Service Worker] Thread summarization failed:`, errorMessage)
-        return { success: false, error: errorMessage }
-    }
-}
-
 chrome.runtime.onMessage.addListener(
-    (message: ExecuteCommandMessage | ThreadMessageRequest | SummarizeThreadRequest, sender: chrome.runtime.MessageSender, sendResponse) => {
+    (message: ExecuteCommandMessage | ThreadMessageRequest, sender: chrome.runtime.MessageSender, sendResponse) => {
         if (message.type === 'executeCommand') {
             handleExecuteCommand(message, sender).then((result) => {
                 sendResponse(result)
@@ -218,11 +186,6 @@ chrome.runtime.onMessage.addListener(
             return true
         } else if (message.type === 'threadMessage') {
             handleThreadMessage(message, sender).then((result) => {
-                sendResponse(result)
-            })
-            return true
-        } else if (message.type === 'summarizeThread') {
-            handleSummarizeThread(message, sender).then((result) => {
                 sendResponse(result)
             })
             return true
