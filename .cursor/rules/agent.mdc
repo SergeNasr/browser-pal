@@ -1,0 +1,8 @@
+---
+alwaysApply: true
+---
+- Always use pnpm. Never use npm or yarn.
+- Use TypeScript, never JavaScript
+- Do not introduce new dependencies without asking
+- Follow existing folder structure
+- Write concise comments only when logic is non-obvious
