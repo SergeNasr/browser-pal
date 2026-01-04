@@ -174,6 +174,7 @@ function saveContent(): void {
 
 async function insertMarkdownAtCursor(markdown: string): Promise<void> {
     const html = await parseMarkdown(markdown)
+    console.log('Rendered HTML:', html)
     const sanitizedHtml = DOMPurify.sanitize(html)
     editor.insertAtCursor(sanitizedHtml)
     saveContent()

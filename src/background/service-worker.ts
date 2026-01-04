@@ -39,11 +39,6 @@ function processTemplate(template: string, pageContent: string, selection: strin
         .replace(/\{\{selection\}\}/g, selection)
 }
 
-function normalizeMarkdownSpacing(markdown: string): string {
-    if (!markdown) return markdown
-    return markdown.replace(/(^-\s.*)\n\n(?=-\s)/gm, '$1\n')
-}
-
 async function callOpenAI(
     messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
 ): Promise<string> {
@@ -52,6 +47,7 @@ async function callOpenAI(
         throw new Error('OpenAI API key not configured')
     }
 
+    const model = 'gpt-5-nano-2025-08-07'
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -59,11 +55,14 @@ async function callOpenAI(
             'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-            model: 'gpt-5-nano',
+            model,
             messages,
-            temperature: 0.7,
         }),
     })
+
+    console.log('model:', model)
+    const text = await response.clone().text()
+    console.log(text)
 
     if (!response.ok) {
         const error = await response.json().catch(() => ({ error: { message: 'Unknown error' } }))
@@ -96,9 +95,8 @@ async function handleExecuteCommand(
         const pageContent = await getPageContent(tabId)
         const prompt = processTemplate(cmd.template, pageContent, message.selection)
         const response = await callOpenAI([{ role: 'user', content: prompt }])
-        const normalizedResponse = normalizeMarkdownSpacing(response)
 
-        return { success: true, response: normalizedResponse }
+        return { success: true, response }
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
         console.error(`[Service Worker] Command execution failed for /${message.command}:`, errorMessage)

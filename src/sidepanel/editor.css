@@ -29,7 +29,6 @@ body {
     background: #ffffff;
     color: #333333;
     overflow-y: auto;
-    white-space: pre-wrap;
     word-wrap: break-word;
 }
 
@@ -96,6 +95,10 @@ body {
 
 #editor li {
     margin: 4px 0;
+}
+
+#editor li p {
+    margin: 0;
 }
 
 #editor code {
