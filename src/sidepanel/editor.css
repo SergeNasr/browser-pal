@@ -29,7 +29,6 @@ body {
     background: #ffffff;
     color: #333333;
     overflow-y: auto;
-    white-space: pre-wrap;
     word-wrap: break-word;
 }
 
