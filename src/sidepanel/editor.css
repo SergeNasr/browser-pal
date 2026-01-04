@@ -97,10 +97,6 @@ body {
     margin: 4px 0;
 }
 
-#editor li p {
-    margin: 0;
-}
-
 #editor code {
     background-color: #f6f8fa;
     border-radius: 3px;
